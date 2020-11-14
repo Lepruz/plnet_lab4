@@ -61,9 +61,9 @@ namespace JPNET.lab4.Services
             List<ZamowieniePrzedmiot> zamowieniePrzedmiot = new List<ZamowieniePrzedmiot>();
             Console.WriteLine("Wpisz cokolwiek innego poza liczbą, aby przestać dodawac przedmioty");
 
-            while(true)
+            while (true)
             {
-                var przedmiot = new ZamowieniePrzedmiot(); 
+                var przedmiot = new ZamowieniePrzedmiot();
                 Console.WriteLine($"Wpisz numer id przedmiotu");
                 string input = Console.ReadLine();
                 if (int.TryParse(input, out int i))
@@ -88,40 +88,31 @@ namespace JPNET.lab4.Services
 
                 zamowieniePrzedmiot.Add(przedmiot);
             }
-
+            if (!zamowieniePrzedmiot.Any())
+            {
+                Console.WriteLine("Nie mozna dodac pustego zamowienia!");
+                Console.WriteLine("Wcisnij dowolny przycisk aby kontynuowac.");
+                Console.ReadKey();
+                return;
+            }
             var klient = context.Klienci.Find(Context.CurrentClientId);
-            using var transaction = context.Database.BeginTransaction();
-            transaction.CreateSavepoint("saveorder");
-            //wydaje mi się, że w EFCore jest to zbędne, dopóki nie zapiszmey zmian
-            
+
             Zamowienie zamowienie = new Zamowienie()
             {
-                Klient = klient, 
+                Klient = klient,
                 Zrealizowane = false
             };
             context.Zamowienia.Add(zamowienie);
-            context.SaveChanges();
-            bool success = true;
-            foreach(var zp in zamowieniePrzedmiot)
+            //context.SaveChanges();
+            foreach (var zp in zamowieniePrzedmiot)
             {
-                if (zp.Liczba > zp.Przedmiot.Amount)
-                {
-                    transaction.RollbackToSavepoint("saveorder");
-                    Console.WriteLine("Nie udało się dodać zamówienia! Brak wystarczającej liczby przedmiotu w magazynie");
-                    success = false;
-                    break;
-                }
-                zp.Przedmiot.Amount -= zp.Liczba;
+
                 zp.Zamowienie = zamowienie;
                 context.ZamowieniaPrzedmiotow.Add(zp);
             }
-            if (success)
-            {
-                zamowienie.Zrealizowane = true;
-                context.SaveChanges();
-                Console.WriteLine("Dodano zamowienie!");
-            }
-            transaction.Commit();
+
+            context.SaveChanges();
+            Console.WriteLine("Dodano zamowienie!");
             Console.WriteLine("Wcisnij dowolny przycisk aby kontynuowac.");
             Console.ReadKey();
         }
@@ -162,45 +153,76 @@ namespace JPNET.lab4.Services
 
                 zamowieniePrzedmiot.Add(przedmiot);
             }
+            if(!zamowieniePrzedmiot.Any())
+            {
+                Console.WriteLine("Nie mozna dodac pustego zamowienia!");
+                Console.WriteLine("Wcisnij dowolny przycisk aby kontynuowac.");
+                Console.ReadKey();
+                return;
+            }
 
             var klient = context.Klienci.Find(Context.CurrentClientId);
-            using var transaction = context.Database.BeginTransaction();
-            transaction.CreateSavepoint("saveorder");
-            //wydaje mi się, że w EFCore jest to zbędne, dopóki nie zapiszmey zmian
 
             ZamowienieInternetowe zamowienie = new ZamowienieInternetowe()
             {
                 Klient = klient,
-                Zrealizowane = false, 
+                Zrealizowane = false,
                 Ip = ip
             };
             context.ZamowieniaInternetowe.Add(zamowienie);
             context.SaveChanges();
-            bool success = true;
             foreach (var zp in zamowieniePrzedmiot)
             {
-                if (zp.Liczba > zp.Przedmiot.Amount)
-                {
-                    transaction.RollbackToSavepoint("saveorder");
-                    Console.WriteLine("Nie udało się dodać zamówienia! Brak wystarczającej liczby przedmiotu w magazynie");
-                    success = false;
-                    break;
-                }
-                zp.Przedmiot.Amount -= zp.Liczba;
+
                 zp.Zamowienie = zamowienie;
                 context.ZamowieniaPrzedmiotow.Add(zp);
             }
-            if (success)
-            {
-                zamowienie.Zrealizowane = true;
-                context.SaveChanges();
-                Console.WriteLine("Dodano zamowienie!");
-            }
-            transaction.Commit();
+
+            context.SaveChanges();
+            Console.WriteLine("Dodano zamowienie!");
             Console.WriteLine("Wcisnij dowolny przycisk aby kontynuowac.");
             Console.ReadKey();
         }
 
+        private void RealizeOrder(Zamowienie zamowienie)
+        {
+            if(zamowienie.Zrealizowane)
+            {
+                Console.WriteLine("Zamowienie jest juz zrealizowane!");
+                Console.WriteLine("Wcisnij dowolny przycisk aby kontynuowac.");
+                Console.ReadKey();
+                return;
+            }
+            using ApplicationContext context = new ApplicationContext();
+            var zamowieniePrzedmiot = context.ZamowieniaPrzedmiotow.Include(x => x.Przedmiot).Where(x => x.Zamowienie.Id == zamowienie.Id).ToList();
+            using var transaction = context.Database.BeginTransaction();
+            bool success = true;
+            transaction.CreateSavepoint("realizeorder");
+            foreach (var zp in zamowieniePrzedmiot)
+            {
+                if (zp.Liczba > zp.Przedmiot.Amount)
+                {
+                    Console.WriteLine("Nie udało się zrealizować zamówienia! Brak wystarczającej liczby przedmiotu w magazynie");
+                    success = false;
+                    break;
+                }
+                zp.Przedmiot.Amount -= zp.Liczba;
+            }
+            if(success)
+            {
+                zamowienie.Zrealizowane = true;
+                context.SaveChanges();
+                Console.WriteLine("Pomyslnie zraelizowano zamowienie!");
+            }
+            else
+            {
+                transaction.RollbackToSavepoint("realizeorder");
+            }
+
+            transaction.Commit();
+            Console.WriteLine("Wcisnij dowolny przycisk aby kontynuowac.");
+            Console.ReadKey();
+        }
 
         private void ShowOrders()
         {
@@ -213,7 +235,7 @@ namespace JPNET.lab4.Services
             do
             {
                 Console.Clear();
-                Console.WriteLine("P - poprzednia strona, N - nastepna strona, ESC - wyjscie");
+                Console.WriteLine("P - poprzednia strona, N - nastepna strona, ESC - wyjscie, wcisnij numer wg kolejnosci na WIDOCZNEJ liscie, zeby zrealizowac zamowienie");
                 Console.WriteLine($"Obecna strona : {currentPage}");
                 zamowienia = context.Zamowienia.Include(x => x.Klient).Include(x => x.Przedmioty).ThenInclude(x => x.Przedmiot).Skip((currentPage - 1) * 5).Take(5).ToList();
                 ShowZamowienia(zamowienia, currentPage);
@@ -229,14 +251,28 @@ namespace JPNET.lab4.Services
                         currentPage--;
                     }
                 }
+                if (int.TryParse(input.KeyChar.ToString(), out int i))
+                {
+                    try
+                    {
+                        var zamowienie = zamowienia[i - 1];
+                        RealizeOrder(zamowienie);
+                    }
+                    catch(Exception)
+                    {
+                        Console.WriteLine("Problem przy realizacji zamowienia! Wcisnij dowolny przycisk aby kontynuowac.");
+                        Console.ReadKey();
+                    }
+                }
+
             } while (input.Key != ConsoleKey.Escape);
             ShowOperationScreen();
         }
 
         private static void ShowZamowienia(List<Zamowienie> zamowienia, int currentPage)
         {
-            int i = (currentPage-1)*5;
-            zamowienia.ForEach(k => Console.WriteLine($"{++i}. ID:{k.Id} Klient: {k.Klient.Nazwa} Cena calkowita:{k.CenaCalkowita} Liczba przedmiotow: {k.LiczbaCalkowita}"));
+            int i = (currentPage - 1) * 5;
+            zamowienia.ForEach(k => Console.WriteLine($"{++i}.  ID:{k.Id}   Klient: {k.Klient.Nazwa}    Cena calkowita:{k.CenaCalkowita}    Liczba przedmiotow: {k.LiczbaCalkowita} Internetowe:{k.GetType() == typeof(ZamowienieInternetowe)}  Zrealizowane: {k.Zrealizowane}\n"));
         }
     }
 }

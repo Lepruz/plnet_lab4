@@ -21,9 +21,18 @@ namespace JPNET.lab4
             ShowMenu();
             do
             {
-                input = Console.ReadKey();
-                HandleKey(input);
-                ShowMenu();
+                try
+                {
+                    input = Console.ReadKey();
+                    HandleKey(input);
+                    ShowMenu();
+                }
+                catch(Exception ex)
+                {
+                    Console.WriteLine($"Wystąpił nieznany błąd. Nacisnij przycisk aby kontynuowac, badz ESC zeby wyjsc! {ex.Message}");
+                    input = Console.ReadKey();
+                    ShowMenu();
+                }
             } while (input.Key != ConsoleKey.Escape);
         }
 

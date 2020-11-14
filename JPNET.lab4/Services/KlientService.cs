@@ -54,7 +54,7 @@ namespace JPNET.lab4.Services
             ConsoleKeyInfo input;
             using ApplicationContext context = new ApplicationContext();
             List<Klient> klienci = new List<Klient>();
-            Console.WriteLine($"Wpisz nazwę klienta: {sb}");
+            Console.WriteLine($"Wcisnij ESC aby wyjsc. Wpisz nazwę klienta: {sb}");
             do
             {
                 input = Console.ReadKey();
@@ -79,7 +79,7 @@ namespace JPNET.lab4.Services
         private static void ShowKlienci(List<Klient> klienci)
         {
             int i = 0;
-            klienci.ForEach(k => Console.WriteLine($"{i++}. {k.Nazwa}"));
+            klienci.ForEach(k => Console.WriteLine($"{i++}. {k.Nazwa} Suma zamówień: {k.IleZamowil()}"));
         }
     }
 }
